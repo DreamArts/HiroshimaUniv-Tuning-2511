@@ -95,7 +95,47 @@
 
 ---
 
-## 2. VS Codeを使う場合（推奨）
+## 2. curlコマンドの確認とインストール
+
+動作確認でcurlコマンドを使用するため、事前にインストールされているか確認します。
+
+### 2-1. curlがインストールされているか確認
+
+**Windows（Ubuntu）/ Mac 共通：**
+```bash
+curl --version
+```
+
+**正常な場合の表示例：**
+```
+curl 7.68.0 (x86_64-pc-linux-gnu) libcurl/7.68.0 ...
+```
+
+### 2-2. curlがない場合のインストール
+
+**Windows（Ubuntu WSL）の場合：**
+```bash
+sudo apt update
+sudo apt install curl -y
+```
+
+**Mac（Homebrewを使用）の場合：**
+```bash
+# Homebrewがない場合は先にインストール
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+
+# curlをインストール（通常はmacOSに標準でインストール済み）
+brew install curl
+```
+
+**インストール後、再度確認：**
+```bash
+curl --version
+```
+
+---
+
+## 3. VS Codeを使う場合（推奨）
 
 1. **VS Codeを開く**  
    VS Code でファイルを開きます。
@@ -136,7 +176,7 @@
 
 ---
 
-## 2. VS Codeを使わない場合（代替手順）
+## 4. VS Codeを使わない場合（代替手順）
 
 ### Windows（Ubuntu）
 1. スタートメニューから「Ubuntu」を開く  
@@ -165,7 +205,7 @@
 
 ---
 
-## 3. 動作確認
+## 5. 動作確認
 
 1. **アプリの起動状況を確認**  
    ```bash
@@ -188,7 +228,7 @@
 
 ---
 
-## 4. よくあるトラブル
+## 6. よくあるトラブル
 
 | 症状 | 原因 | 対処法 |
 |------|------|---------|
@@ -226,7 +266,7 @@ docker compose up --build -d
 
 ---
 
-## 5. コマンドまとめ
+## 7. コマンドまとめ
 
 | コマンド | 使うタイミング |
 |-----------|----------------|
@@ -237,7 +277,7 @@ docker compose up --build -d
 
 ---
 
-## 6. チェック項目
+## 8. チェック項目
 
 - `docker ps` で5つのコンテナが「Up」状態になっている  
 - [http://localhost:9000](http://localhost:9000) にアクセスできる  
@@ -250,12 +290,12 @@ docker compose up --build -d
 
 ---
 
-## 7. 動作確認をしよう
+## 9. 動作確認をしよう
 
 **このセクションは講師と一緒に進めます！**  
 各コンテナが正常に起動しているか、curlコマンドで確認してみましょう。
 
-### 7.1 backendの動作確認（例）
+### 9.1 backendの動作確認（例）
 
 **ヘルスチェック:**
 ```bash
@@ -263,7 +303,7 @@ curl http://localhost:9001/api/health
 ```
 期待される結果: `{"message":"サーバーは正常に動作しています","status":"ok","timestamp":"2025-10-21T22:54:24Z"}`
 
-### 7.2 他のコンテナの確認（参考）
+### 9.2 他のコンテナの確認（参考）
 
 **frontend（フロントエンド画面）:**
 - ブラウザで [http://localhost:9002](http://localhost:9002) にアクセス
