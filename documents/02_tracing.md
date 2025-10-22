@@ -28,7 +28,7 @@
   - `total_pages`: 総ページ数
   - `returned_count`: 実際に返却された製品数
 
-👉 Jaeger 上のバーの長さが「処理にかかった時間」を表しています。  
+Jaeger 上のバーの長さが「処理にかかった時間」を表しています。  
 どの処理が長いか・属性情報にどんな値が記録されているかを観察しましょう。
 
 ---
@@ -38,23 +38,14 @@
 ### 2-1. コードにattributeを追加
 `backend/internal/handlers/products.go` の `GetProducts` 関数を開き、以下の行を追加してみましょう：
 
-現在のコードは既にattributeが設定されています：
 ```go
 span.SetAttributes(
     attribute.Int("page", page),
     attribute.Int("limit", limit),
+    // ↑上の2行を追加
     attribute.Int("total_count", totalCount),
     attribute.Int("total_pages", totalPages),
     attribute.Int("returned_count", len(products)),
-)
-```
-
-**追加演習**: さらに詳細な情報を追加してみましょう：
-```go
-// 👇 このコードを既存のSetAttributesの前に追加してください
-span.SetAttributes(
-    attribute.String("request.method", r.Method),
-    attribute.String("request.url_path", r.URL.Path),
 )
 ```
 
@@ -81,14 +72,12 @@ docker compose up --build -d
 ### 2-3. 再度ページを開いて確認
 1. [http://localhost:9000](http://localhost:9000) を再度開く（またはリロード）
 2. Jaegerで新しいトレースを確認
-3. 追加した `request.method` と `request.url_path` の属性が表示されているか確認
+3. 追加した `limit` と `page` の属性が表示されているか確認
 
 **観察ポイント**
 - 新しい属性が「Tags」欄に追加されている
 - `limit` に1ページあたりの表示件数が記録されている
 - `page` にページ番号が記録されている
-- `request.method` に "GET" が記録されている
-- `request.url_path` に "/api/products" が記録されている
 
 ---
 
@@ -108,11 +97,30 @@ docker compose up --build -d
 
 **ヒント**:
 ```go
+import (
+	"encoding/json"
+	"fmt"
+	"log"
+	"math"
+	"net/http"
+	"strings"
+	"time"
+
+	"github.com/jmoiron/sqlx"
+    // ↓下の2行を追加
+	"go.opentelemetry.io/otel"
+    "go.opentelemetry.io/otel/attribute"
+
+	"sample-backend/internal/models"
+)
+
+// 既存のコード
+
 func (h *SearchHandler) SearchProducts(w http.ResponseWriter, r *http.Request) {
     start := time.Now()
     log.Printf("[API] Search products request from %s", r.RemoteAddr)
 
-    // 👇 トレーシングを追加
+    // トレーシングを追加
     tracer := otel.Tracer("product-search-backend")
     _, span := tracer.Start(r.Context(), "search_products")
     defer span.End()
@@ -122,7 +130,7 @@ func (h *SearchHandler) SearchProducts(w http.ResponseWriter, r *http.Request) {
     // 既存のコード...
     // searchReqをデコードした後に以下を追加
 
-    // 👇 検索条件を属性として記録
+    // 検索条件を属性として記録
     span.SetAttributes(
         attribute.String("search.column", searchReq.Column),
         attribute.String("search.keyword", searchReq.Keyword),
@@ -172,7 +180,7 @@ func HealthHandler(w http.ResponseWriter, r *http.Request) {
     _, span := tracer.Start(r.Context(), "health_check")
     defer span.End()
 
-    // 👇 テスト用エラー条件を追加
+    // テスト用エラー条件を追加
     testError := r.URL.Query().Get("test_error")
     if testError == "true" {
         err := fmt.Errorf("テスト用エラー: システムチェック失敗")
@@ -215,26 +223,35 @@ func HealthHandler(w http.ResponseWriter, r *http.Request) {
 **実装例**:
 ```go
 func (h *ProductHandler) GetProducts(w http.ResponseWriter, r *http.Request) {
-    // 既存のコード（start, log, tracer, spanの設定）...
+    // 既存のコード（start, log等）...
 
-    // 👇 総件数取得用の子スパンを追加
-    _, countSpan := tracer.Start(r.Context(), "database_count_query")
+    // トレースの開始（親スパンのコンテキストを保存）
+    tracer := otel.Tracer("product-search-backend")
+    ctx, span := tracer.Start(r.Context(), "get_products")
+    // ↑_をctxに書き換える
+    defer span.End()
+
+    // 既存のページネーション処理...
+
+    // 総件数取得用の子スパンを追加（親のコンテキストを使用）
+    _, countSpan := tracer.Start(ctx, "database_count_query")
+    defer countSpan.End()
     countSpan.SetAttributes(attribute.String("query_type", "COUNT"))
     
     var totalCount int
     err = h.db.Get(&totalCount, "SELECT COUNT(*) FROM products")
     if err != nil {
+        span.SetAttributes(attribute.String("error", err.Error()))
         countSpan.SetAttributes(attribute.String("error", err.Error()))
-        countSpan.End()
         // エラーハンドリング...
         return
     }
     countSpan.SetAttributes(attribute.Int("total_count", totalCount))
-    countSpan.End()
 
-    // 👇 製品データ取得用の子スパンを追加
-    _, dataSpan := tracer.Start(r.Context(), "database_select_query")
-    dataSpan.SetAttributes(
+    // 製品データ取得用の子スパンを追加（親のコンテキストを使用）
+    _, productsSpan := tracer.Start(ctx, "database_products_query")
+    defer productsSpan.End()
+    productsSpan.SetAttributes(
         attribute.String("query_type", "SELECT"),
         attribute.Int("limit", limit),
         attribute.Int("offset", offset),
@@ -244,13 +261,12 @@ func (h *ProductHandler) GetProducts(w http.ResponseWriter, r *http.Request) {
     query := "SELECT id, name, category, brand, model, description, price, created_at FROM products ORDER BY id LIMIT ? OFFSET ?"
     err = h.db.Select(&products, query, limit, offset)
     if err != nil {
-        dataSpan.SetAttributes(attribute.String("error", err.Error()))
-        dataSpan.End()
+        span.SetAttributes(attribute.String("error", err.Error()))
+        productsSpan.SetAttributes(attribute.String("error", err.Error()))
         // エラーハンドリング...
         return
     }
-    dataSpan.SetAttributes(attribute.Int("rows_returned", len(products)))
-    dataSpan.End()
+    productsSpan.SetAttributes(attribute.Int("returned_count", len(products)))
 
     // 残りの処理...
 }
@@ -259,55 +275,4 @@ func (h *ProductHandler) GetProducts(w http.ResponseWriter, r *http.Request) {
 **確認方法**:
 1. 製品一覧ページを開く
 2. Jaegerで `get_products` トレースを確認
-3. 親スパンの下に `database_query` 子スパンが表示されることを確認
-
----
-
-### 演習4: 処理時間の測定とパフォーマンス分析
-
-**目標**: 意図的に遅延を追加して、パフォーマンス問題をJaegerで可視化する
-
-**手順**:
-1. 検索処理にスロー・モードを追加
-2. 遅延時間と遅延理由を属性として記録
-3. 処理時間の違いを比較分析
-
-**実装例**:
-```go
-func (h *SearchHandler) SearchProducts(w http.ResponseWriter, r *http.Request) {
-    start := time.Now()
-    log.Printf("[API] Search products request from %s", r.RemoteAddr)
-
-    // トレーシングを追加
-    tracer := otel.Tracer("product-search-backend")
-    _, span := tracer.Start(r.Context(), "search_products")
-    defer span.End()
-
-    setJSONHeaders(w)
-
-    // 👇 スロー・モードのテスト（POSTリクエスト処理前に追加）
-    slowMode := r.URL.Query().Get("slow")
-    if slowMode == "true" {
-        span.SetAttributes(
-            attribute.Bool("slow_mode", true),
-            attribute.String("delay_reason", "test_simulation"),
-            attribute.Int("delay_seconds", 2),
-        )
-        log.Printf("[DEBUG] Slow mode activated - adding 2 second delay")
-        time.Sleep(2 * time.Second)
-    }
-
-    // 既存のPOSTメソッドチェック...
-    // 通常の検索処理...
-}
-```
-
-**確認方法**:
-1. 通常の検索を実行してトレース確認（ブラウザで検索フォームを使用）
-2. スロー・モード付きで検索実行：
-   ```bash
-   curl -X POST "http://localhost:9001/api/search?slow=true" \
-     -H "Content-Type: application/json" \
-     -d '{"column":"name","keyword":"Pro","page":1,"limit":10}'
-   ```
-3. Jaegerで処理時間の違いとスロー・モード属性を確認
+3. 親スパンの下に子スパンが表示されることを確認

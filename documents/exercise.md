@@ -97,6 +97,7 @@ SHOW TABLES;
 SHOW COLUMNS FROM products;
 SELECT * FROM products LIMIT 5;
 SELECT COUNT(*) FROM products;
+SELECT name,price FROM products WHERE category="スマートフォン";
 ```
 
 **ポイント**
@@ -106,6 +107,7 @@ SELECT COUNT(*) FROM products;
 - `SHOW COLUMNS FROM products;`：`products` テーブルの中身の構造（列名・型など）を見られます。  
 - `SELECT * FROM products LIMIT 5;`：データを5件だけ確認します。  
 - `SELECT COUNT(*) FROM products;`：全体で何件あるか数えます。   
+- `SELECT name,price FROM products WHERE category="スマートフォン";` ：カテゴリがスマートフォンである商品の商品名と価格の情報を取得します。
 
 **MySQLから出るには:**
 ```sql

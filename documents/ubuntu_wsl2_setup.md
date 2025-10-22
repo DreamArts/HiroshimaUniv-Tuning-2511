@@ -20,8 +20,8 @@ WSL2 や Docker は、**仮想化技術（Virtualization）** を使って動作
 3. 左側のリストから「**CPU**」を選択  
 4. 右側の情報欄の下部に「**仮想化：有効**」または「**仮想化：無効**」と表示されます  
 
-📷 **下のスクリーンショットを参考に確認してください**  
-![タスクマネージャーで仮想化を確認する画面](./virtualization_check.png)
+**下のスクリーンショットを参考に確認してください**  
+![タスクマネージャーで仮想化を確認する画面](./imgs/virtualization_check.png)
 
  **仮想化：有効** → そのまま次のステップへ  
  **仮想化：無効** または 表示がない → BIOS（UEFI）で有効化が必要です  
@@ -49,9 +49,6 @@ WSL2 や Docker は、**仮想化技術（Virtualization）** を使って動作
 2. **Linux 用 Windows サブシステム** にチェックをいれる
 3. 「OK」を押して設定を反映  
 4. Windowsの再起動を求められたら、再起動します  
-
-📷 **設定画面の参考画像**  
-![Windows機能の有効化画面](./windows_features_wsl.png)
 
 ---
 
@@ -111,7 +108,7 @@ docker version
 下記のように表示されればOKです：
 
 📷 **確認結果の例**  
-![docker versionコマンドの出力例](./docker_version_check.png)
+![docker versionコマンドの出力例](./imgs/docker_version_check.png)
 
 ---
 
@@ -125,12 +122,9 @@ docker version
 | 文字化けする | ロケール未設定 | `sudo apt install language-pack-ja` を実行 |
 | 起動が遅い | WSL1で動いている | `wsl --set-version Ubuntu-22.04 2` を実行してWSL2に変更 |
 
-📷 **エラー発生時の例**  
-![WSL関連のエラー表示例](./wsl_error_example.png)
-
 ---
 
-## 🎉 完了！
+## 完了！
 
 これでUbuntu（WSL2）のセットアップが完了しました！  
 次は、配布資料にある [アプリケーションのセットアップ](./01_setup.md) に進みましょう。
