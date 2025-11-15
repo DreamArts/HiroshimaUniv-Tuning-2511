@@ -3,6 +3,7 @@ package repository
 import (
 	"backend/internal/model"
 	"context"
+	"fmt"
 )
 
 type ProductRepository struct {
@@ -15,36 +16,48 @@ func NewProductRepository(db DBTX) *ProductRepository {
 
 // 商品一覧を全件取得し、アプリケーション側でページング処理を行う
 func (r *ProductRepository) ListProducts(ctx context.Context, userID int, req model.ListRequest) ([]model.Product, int, error) {
+	fmt.Printf("list products")
 	var products []model.Product
 	baseQuery := `
 		SELECT product_id, name, value, weight, image, description
 		FROM products
 	`
+	countQuery := `
+		SELECT COUNT(*)
+		FROM products
+	`
 	args := []interface{}{}
+	countArgs := []interface{}{}
 
 	if req.Search != "" {
 		baseQuery += " WHERE (name LIKE ? OR description LIKE ?)"
+		countQuery += " WHERE (name LIKE ? OR description LIKE ?)"
 		searchPattern := "%" + req.Search + "%"
 		args = append(args, searchPattern, searchPattern)
+		countArgs = append(countArgs, searchPattern, searchPattern)
 	}
 
-	baseQuery += " ORDER BY " + req.SortField + " " + req.SortOrder + " , product_id ASC"
+	var total int
+	err := r.db.GetContext(ctx, &total, r.db.Rebind(countQuery), countArgs...)
+	fmt.Printf("%v", err)
 
-	err := r.db.SelectContext(ctx, &products, baseQuery, args...)
 	if err != nil {
 		return nil, 0, err
 	}
 
-	total := len(products)
-	start := req.Offset
-	end := req.Offset + req.PageSize
-	if start > total {
-		start = total
+	baseQuery += " ORDER BY " + req.SortField + " " + req.SortOrder + " , product_id ASC"
+	if req.PageSize != 0 {
+		baseQuery += " LIMIT ? "
+		args = append(args, req.PageSize)
 	}
-	if end > total {
-		end = total
+	if req.Offset != 0 {
+		baseQuery += " OFFSET ? "
+		args = append(args, req.Offset)
 	}
-	pagedProducts := products[start:end]
+	err = r.db.SelectContext(ctx, &products, baseQuery, args...)
+	if err != nil {
+		return nil, 0, err
+	}
 
-	return pagedProducts, total, nil
+	return products, total, nil
 }
