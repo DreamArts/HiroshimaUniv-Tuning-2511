@@ -1,1 +1,1 @@
-ALTER TABLE orders ADD_INDEX order_id_index (order_id);
+ALTER TABLE orders ADD INDEX order_id_index (order_id);
