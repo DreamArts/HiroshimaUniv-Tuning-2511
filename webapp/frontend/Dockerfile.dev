@@ -1,0 +1,7 @@
+FROM hiroshimauniv2511.azurecr.io/frontend:base AS build
+
+WORKDIR /usr/src/frontend
+
+COPY package.json yarn.lock ./
+
+EXPOSE 3000
