@@ -4,3 +4,5 @@
 *.zip
 sample/*
 deploy_*.sh
+# Ignore macOS archive metadata directory created in zip imports
+/webapp/mysql/init/__MACOSX/
