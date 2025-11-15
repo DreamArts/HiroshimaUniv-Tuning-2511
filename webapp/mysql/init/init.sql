@@ -12,13 +12,20 @@ CREATE TABLE `users` (
   );
 
 -- productsテーブルの作成
+-- productsテーブルの作成
 CREATE TABLE products (
     product_id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
     value INT UNSIGNED NOT NULL,
     weight INT UNSIGNED NOT NULL,
     image VARCHAR(500),
-    description TEXT
+    description TEXT,
+    
+    -- インデックスをテーブル定義内に記述
+    INDEX idx_products_name (name(191)),
+    INDEX idx_products_value (value),
+    INDEX idx_products_weight (weight)
+    
 ) ENGINE=InnoDB
 DEFAULT CHARSET=utf8mb4
 COLLATE=utf8mb4_0900_ai_ci;
@@ -30,8 +37,14 @@ CREATE TABLE orders (
     shipped_status VARCHAR(50) NOT NULL,
     created_at DATETIME NOT NULL,
     arrived_at DATETIME,
+    
     FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE,
-    FOREIGN KEY (product_id) REFERENCES products(product_id) ON DELETE CASCADE
+    FOREIGN KEY (product_id) REFERENCES products(product_id) ON DELETE CASCADE,
+
+    -- インデックスをテーブル定義内に記述
+    INDEX idx_orders_user_id_created_at (user_id, created_at DESC),
+    INDEX idx_orders_shipped_status (shipped_status),
+    INDEX idx_orders_arrived_at (arrived_at)
 );
 
 CREATE TABLE `user_sessions` (
@@ -43,3 +56,4 @@ CREATE TABLE `user_sessions` (
   UNIQUE KEY `session_uuid` (`session_uuid`),
   FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
 );
+

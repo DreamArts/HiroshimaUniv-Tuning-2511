@@ -3,6 +3,8 @@ package repository
 import (
 	"backend/internal/model"
 	"context"
+	"fmt"
+	"strings"
 )
 
 type ProductRepository struct {
@@ -13,8 +15,35 @@ func NewProductRepository(db DBTX) *ProductRepository {
 	return &ProductRepository{db: db}
 }
 
-// 商品一覧を全件取得し、アプリケーション側でページング処理を行う
+// GetTotalProductsCount 获取筛选后的商品总数
+func (r *ProductRepository) GetTotalProductsCount(ctx context.Context, req model.ListRequest) (int, error) {
+	var total int
+	query := "SELECT COUNT(product_id) FROM products"
+	args := []interface{}{}
+
+	if req.Search != "" {
+		// 修正：FULLTEXT 検索から元の LIKE 検索に戻す
+		query += " WHERE (name LIKE ? OR description LIKE ?)"
+		searchPattern := "%" + req.Search + "%"
+		args = append(args, searchPattern, searchPattern)
+	}
+
+	err := r.db.GetContext(ctx, &total, query, args...)
+	return total, err
+}
+
+// 商品一覧を取得 (Optimized)
 func (r *ProductRepository) ListProducts(ctx context.Context, userID int, req model.ListRequest) ([]model.Product, int, error) {
+	// 1. 获取总数
+	total, err := r.GetTotalProductsCount(ctx, req)
+	if err != nil {
+		return nil, 0, err
+	}
+	if total == 0 {
+		return []model.Product{}, 0, nil
+	}
+
+	// 2. 构建主查询
 	var products []model.Product
 	baseQuery := `
 		SELECT product_id, name, value, weight, image, description
@@ -23,28 +52,38 @@ func (r *ProductRepository) ListProducts(ctx context.Context, userID int, req mo
 	args := []interface{}{}
 
 	if req.Search != "" {
+		// 修正：FULLTEXT 検索から元の LIKE 検索に戻す
 		baseQuery += " WHERE (name LIKE ? OR description LIKE ?)"
 		searchPattern := "%" + req.Search + "%"
 		args = append(args, searchPattern, searchPattern)
 	}
 
-	baseQuery += " ORDER BY " + req.SortField + " " + req.SortOrder + " , product_id ASC"
+	// 3. 添加排序 (ここは変更なし・最適化済み)
+	// 安全校验：防止SQL注入
+	sortField := "product_id" // デフォルト値
+	switch req.SortField {
+	case "name":
+		sortField = "name"
+	case "value":
+		sortField = "value"
+	case "weight":
+		sortField = "weight"
+	}
+	sortOrder := "ASC"
+	if strings.ToUpper(req.SortOrder) == "DESC" {
+		sortOrder = "DESC"
+	}
+	baseQuery += fmt.Sprintf(" ORDER BY %s %s, product_id ASC", sortField, sortOrder)
 
-	err := r.db.SelectContext(ctx, &products, baseQuery, args...)
+	// 4. 添加分页 (ここは変更なし・最適化済み)
+	baseQuery += " LIMIT ? OFFSET ?"
+	args = append(args, req.PageSize, req.Offset)
+
+	err = r.db.SelectContext(ctx, &products, baseQuery, args...)
 	if err != nil {
 		return nil, 0, err
 	}
 
-	total := len(products)
-	start := req.Offset
-	end := req.Offset + req.PageSize
-	if start > total {
-		start = total
-	}
-	if end > total {
-		end = total
-	}
-	pagedProducts := products[start:end]
-
-	return pagedProducts, total, nil
+	// 5. 返回分页结果和总数
+	return products, total, nil
 }
